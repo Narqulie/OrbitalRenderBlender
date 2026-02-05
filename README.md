@@ -13,7 +13,7 @@ Creates a series of rendered images from camera positions arranged in a sphere a
 
 1. Download or clone this repository
 2. In Blender: Edit > Preferences > Add-ons > Install
-3. Select the `orbital_render_3dgs_addon` folder
+3. Select the `orbital_render_3dgs_addon` zip-file
 4. Enable the addon in the list
 
 ## Usage
