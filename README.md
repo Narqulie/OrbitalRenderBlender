@@ -1,80 +1,44 @@
 # Orbital Render for 3DGS
 
-Orbital Render is a Blender 5 add-on for producing calibrated, resumable COLMAP datasets from a Blender scene. It places one temporary camera on horizontal paths around an object, collection, or manual region, renders each view, and exports the same poses used for rendering.
+Orbital Render is a Blender 5 add-on that turns a scene into a calibrated COLMAP dataset for 3D Gaussian Splatting. It renders a temporary camera along horizontal paths, records the calibration and pose used for each frame, and can resume a long capture without mixing incompatible images.
 
-The standard COLMAP output is loadable by Brush. A derived `cameras.json` sidecar follows the Inria camera schema used by SuperSplat. COLMAP remains the authoritative dataset representation.
+![Orbital Render panel and path preview in Blender](docs/images/blender-ui.png)
 
-## What changed in version 2
+## What it does
 
-Version 2 replaces the old custom `transforms.json` export with a standard COLMAP text model. It also fixes several sources of incorrect calibration and unsafe scene mutation:
+A folder of renders is not enough to train a 3DGS model. The trainer also needs the camera intrinsics, camera poses, an initial point cloud, and a stable train/evaluation split. Orbital Render writes all of them from the same frozen capture plan.
 
-- Camera intrinsics come from Blender's evaluated camera frame. Resolution, sensor fit, camera shift, and pixel aspect are included.
-- Poses use COLMAP's world-to-camera OpenCV convention.
-- The add-on creates and removes its own camera. It does not reuse or delete a user's named camera.
-- Render settings, the active camera, and the scene frame are restored after success, cancellation, or error. Border rendering, crop-to-border, and compositing are disabled during capture so full-frame intrinsics remain valid, then restored.
-- Images and progress use recoverable two-phase commits. Resume verifies the plan, render-visible source geometry and appearance settings, initialization point cloud, image sizes, image checksums, and generated metadata.
-- Object and collection bounds use evaluated dependency-graph instances. Linked collection instances keep their world transforms.
-- Horizontal radius and world Z are independent. Dataset Z is a Blender scene coordinate, not a verified sea-level altitude.
-- Headless captures can stop successfully after a bounded number of new frames, then continue in a fresh Blender process.
+- Target selected objects, a collection, or a manual world-space region.
+- Set horizontal radii and absolute Blender Z heights independently.
+- Preview the paths and frame count before rendering.
+- Export a standard COLMAP text model for [Brush](https://github.com/ArthurBrussee/brush).
+- Export an Inria-style `cameras.json` sidecar for tools such as [SuperSplat](https://github.com/playcanvas/supersplat).
+- Stop after the current frame and continue later from verified files.
 
-## Installation
+![Six calibrated views from the synthetic smoke scene](docs/images/capture-grid.png)
 
-Build the installable zip:
+## Install
+
+Download `orbital_render_3dgs_addon.zip` from the [latest release](https://github.com/Narqulie/OrbitalRenderBlender/releases/latest/download/orbital_render_3dgs_addon.zip).
+
+In Blender, open **Edit > Preferences > Add-ons > Install from Disk**, choose the zip, then enable **Orbital Render for 3DGS**. The add-on requires Blender 5.0 or newer. Development and release checks use Blender 5.2.2 LTS.
+
+To build the zip yourself:
 
 ```bash
 pyenv exec python scripts/build_addon.py
 ```
 
-In Blender, open **Edit > Preferences > Add-ons > Install from Disk**, select `orbital_render_3dgs_addon.zip`, and enable **Orbital Render for 3DGS**.
+## Capture from Blender
 
-## Blender UI
+1. Open the **3DGS Render** tab in the 3D View sidebar.
+2. Choose selected objects, a collection, or a manual region.
+3. Enter comma-separated radii and world Z heights. Leave either field blank to derive values from the target bounds.
+4. Set the camera, render format, resolution, hold-out interval, and output directory.
+5. Click **Validate and count**. Use **Toggle path preview** if you want to inspect the paths in the viewport.
+6. Save the plan or start **Generate COLMAP dataset**.
 
-1. Select one or more objects, or choose a collection or manual region in the **3DGS Render** sidebar.
-2. Enter comma-separated horizontal radii and absolute world Z heights. Leave either field blank to derive three values from the target bounds.
-3. Set the look-at height, camera calibration, render settings, and output directory.
-4. Use **Validate and count** to inspect the frame count and target bounds.
-5. Use **Toggle path preview** to add or remove a non-rendering wire preview.
-6. Choose **Save capture plan** to freeze a plan without rendering, or **Generate COLMAP dataset** to begin capture.
-
-The cancel button requests cancellation after the current still finishes. Blender's still render call is synchronous, so it cannot stop safely halfway through an image. Editing render-visible scene state during a capture aborts the session before the next frame.
-
-## Headless capture
-
-The tracked example at `examples/capture_config.json` documents every config field. Collection or manual-region targets are preferable in background mode.
-
-Create a plan without sampling geometry or rendering:
-
-```bash
-BLENDER=/Applications/Blender.app/Contents/MacOS/Blender
-
-"$BLENDER" --background scene.blend \
-  --python scripts/orbital_capture.py -- \
-  --config examples/capture_config.json \
-  --output /absolute/path/to/dataset \
-  --plan-only
-```
-
-Render at most 12 new frames in one process:
-
-```bash
-"$BLENDER" --background scene.blend \
-  --python scripts/orbital_capture.py -- \
-  --plan /absolute/path/to/dataset/capture_plan.json \
-  --max-frames 12
-```
-
-Continue with a validated fresh process:
-
-```bash
-"$BLENDER" --background scene.blend \
-  --python scripts/orbital_capture.py -- \
-  --plan /absolute/path/to/dataset/capture_plan.json \
-  --resume --max-frames 12
-```
-
-Each successful invocation prints one machine-readable line beginning with `ORBITAL_CAPTURE_RESULT`. A bounded slice exits successfully with `"complete": false`. The final slice reports `"complete": true`. The frozen full plan never changes between slices.
-
-Do not pass `--resume` for the first rendered slice after `--plan-only`. Pass it once the state contains committed frames. A changed plan, source scene, render setting, or artifact stops the run instead of overwriting data.
+Cancel waits for the current still to finish. Blender's still-render call is synchronous, so stopping halfway through an image would leave ambiguous output. If the scene changes between frames, capture stops before it can commit a mismatched frame.
 
 ## Output
 
@@ -93,19 +57,79 @@ dataset/
     points3D.txt
 ```
 
-`capture_plan.json` is the frozen authority. It contains the target region, source signature, explicit frame names and camera positions, measured intrinsics, camera-to-world CV matrices, and COLMAP world-to-camera poses.
+`capture_plan.json` is the frozen authority for target bounds, frame names, camera positions, intrinsics, camera-to-world matrices, and COLMAP poses. `capture_state.json` records the committed frame prefix, image sizes, SHA-256 checksums, and completion state.
 
-`capture_state.json` contains the committed frame prefix, per-image size and SHA-256, initialization point-cloud digest, and the explicit `complete` flag.
+The add-on samples evaluated target geometry for `points3D.txt`. It keeps linked collection transforms and converts curves, surfaces, metaballs, and text through Blender's evaluated mesh API. It does not invent feature tracks.
 
-`points3D.txt` contains a deterministic capped reservoir sample of evaluated target geometry vertices and material fallback colors. Curves, surfaces, metaballs, and text are converted through Blender's evaluated mesh API for sampling. The file intentionally has no fabricated feature tracks. Brush consumes the point XYZ/RGB values for initialization and ignores COLMAP tracks.
+With `Hold out every` set to `8`, use the same value in Brush:
 
-`splits.json` records train and evaluation names. With `eval_every: 8`, pass `--eval-split-every 8` to Brush. Brush sorts the zero-padded image names before selecting every eighth frame, so its split matches the plan.
+```bash
+brush /absolute/path/to/dataset \
+  --total-train-iters 7000 \
+  --eval-split-every 8
+```
 
-`cameras.json` is derived from the same unmodified poses. It uses the Inria fields `id`, `img_name`, `position`, `rotation`, `width`, `height`, `fx`, and `fy`. Viewer-specific axis conversion belongs in the viewer and is not baked into this file.
+Brush sorts the zero-padded image names before it selects every eighth frame, so the split matches `splits.json`.
 
-## Validation
+## Headless and sliced capture
 
-Run the focused checks from the repository root:
+The example at [`examples/capture_config.json`](examples/capture_config.json) documents each field. Collection and manual-region targets are the most predictable choices in background mode.
+
+Create a plan without rendering:
+
+```bash
+BLENDER=/Applications/Blender.app/Contents/MacOS/Blender
+
+"$BLENDER" --background scene.blend \
+  --python scripts/orbital_capture.py -- \
+  --config examples/capture_config.json \
+  --output /absolute/path/to/dataset \
+  --plan-only
+```
+
+Render at most 12 new frames in one Blender process:
+
+```bash
+"$BLENDER" --background scene.blend \
+  --python scripts/orbital_capture.py -- \
+  --plan /absolute/path/to/dataset/capture_plan.json \
+  --max-frames 12
+```
+
+Continue in a fresh process:
+
+```bash
+"$BLENDER" --background scene.blend \
+  --python scripts/orbital_capture.py -- \
+  --plan /absolute/path/to/dataset/capture_plan.json \
+  --resume --max-frames 12
+```
+
+The first rendered slice after `--plan-only` must omit `--resume`. Later slices use it. Each successful invocation prints an `ORBITAL_CAPTURE_RESULT` JSON line. A partial slice reports `"complete": false`; the final slice reports `"complete": true`.
+
+Resume rejects a changed plan, scene, render setting, camera record, or output artifact. It never treats an unexpected file as completed work.
+
+## Brush and SuperSplat smoke result
+
+The screenshots below come from a public synthetic scene, not a private or production model. The check rendered 24 views at 256 x 256, held out every sixth frame, trained Brush for 1,000 iterations, and exported 50,000 splats. The short run checks the file contract, split, export, and viewer import. It is not a reconstruction-quality benchmark.
+
+![Held-out Blender view beside the Brush prediction](docs/images/brush-comparison.png)
+
+The exported PLY and all 24 camera poses also load in SuperSplat 3.3.0. Import `cameras.json` as a file after opening the PLY.
+
+![Brush PLY opened in SuperSplat](docs/images/supersplat-result.png)
+
+## Calibration and scene safety
+
+Orbital Render derives PINHOLE intrinsics from Blender's evaluated camera frame. The calculation includes effective resolution, sensor fit, camera shift, and pixel aspect. Poses use COLMAP's OpenCV world-to-camera convention.
+
+During capture, the add-on disables border rendering, crop-to-border, and compositing so the exported full-frame calibration stays valid. It restores those settings, the active camera, render path, frame, and color state after success, cancellation, or error. The add-on owns its temporary camera and removes only that camera.
+
+World Z means the Blender scene coordinate. It is not a verified altitude above sea level.
+
+## Development checks
+
+Run these commands from the repository root:
 
 ```bash
 pyenv exec python -m unittest discover -s tests -p 'test_*.py' -v
@@ -128,4 +152,4 @@ BLENDER_USER_SCRIPTS="$SMOKE_PROFILE/scripts" \
 rm -rf "$SMOKE_PROFILE"
 ```
 
-The projection test compares independently projected Blender points with the exported PINHOLE calibration and COLMAP pose. It also checks linked-instance bounds, linked-library texture fingerprints, UV and color-management changes, evaluated curve sampling, and render-state restoration. The end-to-end test renders PNG slices plus JPEG and OpenEXR frames, validates resume and metadata, confirms scene restoration, and rejects both mid-capture and resumed source changes.
+The projection test compares independently projected Blender points with the exported PINHOLE calibration and COLMAP pose. The end-to-end test renders sliced PNG, JPEG, and OpenEXR captures, checks resume and metadata, restores scene state, and rejects source changes.
