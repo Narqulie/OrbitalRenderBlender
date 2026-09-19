@@ -1,0 +1,36 @@
+{
+  "target": {
+    "mode": "COLLECTION",
+    "collection": "CaptureTarget",
+    "look_at_z": 2.0
+  },
+  "sampling": {
+    "horizontal_radii": [10.0, 16.0],
+    "world_z_heights": [3.0, 8.0],
+    "azimuth_samples": 24,
+    "azimuth_start_degrees": 0.0,
+    "eval_every": 8
+  },
+  "camera": {
+    "lens_mm": 50.0,
+    "sensor_width_mm": 36.0,
+    "sensor_height_mm": 24.0,
+    "sensor_fit": "HORIZONTAL",
+    "shift_x": 0.0,
+    "shift_y": 0.0,
+    "clip_start": 0.1,
+    "clip_end": 10000.0
+  },
+  "render": {
+    "resolution_x": 1920,
+    "resolution_y": 1080,
+    "pixel_aspect_x": 1.0,
+    "pixel_aspect_y": 1.0,
+    "image_format": "PNG",
+    "transparent_background": false,
+    "samples": 64
+  },
+  "initialization": {
+    "max_points": 20000
+  }
+}

@@ -1,41 +1,9 @@
-# Orbital Render for 3D Gaussian Splatting
+# Orbital Render for 3DGS add-on
 
-Blender addon that generates multi-view orbital renders for 3D Gaussian Splatting reconstruction.
+This Blender 5 add-on renders calibrated orbital views and writes a resumable standard COLMAP dataset.
 
-## What it does
+After installation, open the **3DGS Render** tab in the 3D View sidebar. Choose selected objects, a collection, or a manual region. Horizontal radii and camera Z heights are explicit Blender world coordinates. Use **Validate and count** before starting a large capture.
 
-Creates a series of rendered images from camera positions arranged in a sphere around your selected object. Saves camera transforms in a format compatible with 3DGS training.
+The dataset contains `images/`, `sparse/0/cameras.txt`, `sparse/0/images.txt`, `sparse/0/points3D.txt`, the frozen `capture_plan.json`, atomic `capture_state.json`, `splits.json`, and a derived Inria `cameras.json` camera sidecar. Capture temporarily disables border rendering, crop-to-border, and compositing so exported full-frame intrinsics match every image; the original scene state is restored afterward.
 
-## Installation
-
-1. Download or clone this repository
-2. In Blender: Edit > Preferences > Add-ons > Install
-3. Select the `orbital_render_3dgs_addon` folder
-4. Enable the addon in the list
-
-## Usage
-
-1. Select an object in your scene
-2. Open the sidebar (N key) and find the "3DGS Render" tab
-3. Configure settings:
-   - Elevation rings: Number of vertical camera positions
-   - Azimuth samples: Number of horizontal camera positions per ring
-   - Distance levels: Number of different camera distances
-4. Set output directory
-5. Click "Generate Orbital Renders"
-
-## Settings
-
-**Orbital Sampling**: Controls how many camera positions are generated. More samples = better reconstruction but longer render time.
-
-**Distance Multipliers**: How far the camera is from the object at each distance level (multiplied by object radius).
-
-**Camera Settings**: Standard camera parameters (focal length, sensor width).
-
-**Render Settings**: Resolution and sample count for each render.
-
-**Output**: Directory for saved images and transforms.json file.
-
-## Output
-
-Creates numbered files and a `transforms.json` containing camera intrinsics and extrinsics for 3DGS training.
+See the repository `README.md` for the config schema, bounded headless commands, resume rules, Brush split settings, and validation commands.

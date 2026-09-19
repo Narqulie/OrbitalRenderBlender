@@ -1,0 +1,12 @@
+.DS_Store
+.pi/
+__pycache__/
+*.py[cod]
+/build/
+/dist/
+/captures/
+/datasets/
+/images/
+/models/
+/training/
+/test-output/
